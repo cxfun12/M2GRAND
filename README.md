@@ -40,9 +40,9 @@ pip install -r requirements.txt
 ### Command Line Training
 ```bash
 # Train M2GRAND on Cora dataset
-python train.py --model GCN --dataset cora --lr 0.01 --epochs 200
+python main.py  --global_period=7 --global_noise=0.3  --local_period=5  --local_noise=0.3 --lr=0.02  --dataname=cora  --num_partitions=4
 
 # Train with GPU
-python train.py --model GAT --dataset reddit --device cuda
+python main.py --gpu=0 --global_period=7 --global_noise=0.3  --local_period=5  --local_noise=0.3 --lr=0.02  --dataname=cora  --num_partitions=4
 ```
 
