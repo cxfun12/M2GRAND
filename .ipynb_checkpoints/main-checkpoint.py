@@ -10,10 +10,6 @@ from utils.args import *
 from utils.data_load import *
 from utils.record import *
 
-seed = 42
-np.random.seed(seed)
-th.manual_seed(seed)
-th.cuda.manual_seed(seed)
 
 def run(args):
     print("data intput: ", args.data_input)
@@ -31,14 +27,15 @@ def run(args):
     features = features.to(args.device)
     labels = labels.to(args.device)
     A = A.to(args.device)
+    print("Matrix A: ", type(A))
 
-    print("Partition Graph") 
-
-    if check_subgraphs(args):
-        Subgraphs = load_subgraphs(args)
-    else:
-        Subgraphs = partition_graph_org_metis(graph, args) 
-        save_subgraphs(Subgraphs, args)
+    print("Init Sub Graphs") 
+    #if check_subgraphs(args):
+    #    Subgraphs = load_subgraphs(args)
+    #else:
+    #    Subgraphs = partition_graph_org_metis(graph, args) 
+    #    save_subgraphs(Subgraphs, args)
+    Subgraphs = init_subgraphs(graph, args) 
 
     ## lightGRAND
     print("Global Feature") 

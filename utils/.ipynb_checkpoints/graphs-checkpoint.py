@@ -23,9 +23,8 @@ from collections import namedtuple
 GraphInfo = namedtuple('GraphInfo', ['nxgraph', 'norm', 'adj', 'cid', 'ndata', 'weight'])
 SubGraphs = namedtuple('SubGraphs', ["cid2nid", #partition(cluster) id 转 graph的nid
                                     "nid2cid", #graph的nid到partition id 映射关系
-                                    "nid2subnid", #graph的nid到 subgraph 的_nid； 与dgl.NID(_nid)不是同一类，dgl.NID放在ndata里， 自定义 
-                                    "subgraphs",
-                                    "vitural_id"]) 
+                                    "subgraphs"
+                                    ]) 
 #print("partition graph ", partitions_path)
 #part_adj, parts = partition_graph(adj, list(range(adj.shape[0])), partitions_num)
 ## G.nodes[0]["color"]
@@ -37,19 +36,6 @@ def sparse_mx_to_torch_sparse_tensor(sparse_mx):
     values = th.from_numpy(sparse_mx.data)
     shape = th.Size(sparse_mx.shape)
     return th.sparse.FloatTensor(indices, values, shape)
-
-def partition_graph_dgl_metis(graph, num_partitions):
-    subgraphs = SubGraphs(cid2nid = dict([(cid, []) for cid in range(num_partitions)]), #partition id 转 graph的nid {0:[], 1:[]}
-                    nid2cid = []*graph.number_of_nodes(), #graph的nid到partition id 映射关系
-                    nid2subnid = [0]*graph.number_of_nodes(), #graph的nid到 subgraph 的_nid； 与dgl.NID(_nid)不是同一类，dgl.NID放在ndata里， 自定义 
-                    subgraphs = [],
-                    vitural_id = [])
-    
-    #for cid, val in metis_partition_dgl(graph, num_partitions).items():
-    #    nids = FF.asnumpy( val.ndata[dgl.NID] ).tolist()
-    #    subgraphs.cid2nid[cid].extend( nids )
-
-    return subgraphs
 
 def partition_graph_metis(graph, num_partitions):
     # type(graph) = networkx graph
@@ -64,7 +50,7 @@ def partition_graph_metis(graph, num_partitions):
     
     return edgecuts, parts 
   
-def partition_graph_org_metis(graph, args): 
+def init_subgraphs(graph, args): 
     print(" Graph : Nodes={} Edges={}".format(graph.number_of_nodes(), graph.number_of_edges()))
     num_partitions = args.num_partitions
 
@@ -75,11 +61,11 @@ def partition_graph_org_metis(graph, args):
     #    save_subgraphs((edgecuts, parts), args)
     edgecuts, parts = partition_graph_metis(graph, num_partitions) 
 
-    subgraphs = SubGraphs(cid2nid = dict([(cid, []) for cid in range(num_partitions)]), #partition id 转 graph的nid {0:[], 1:[]}
-                    nid2cid = parts, #graph的nid到partition id 映射关系
-                    nid2subnid = [0]*graph.number_of_nodes(), #graph的nid到 subgraph 的_nid； 与dgl.NID(_nid)不是同一类，dgl.NID放在ndata里， 自定义 
-                    subgraphs = [],
-                    vitural_id = [])
+    subgraphs = SubGraphs(
+           cid2nid = dict([(cid, []) for cid in range(num_partitions)]), #partition id 转 graph的nid {0:[], 1:[]}
+           nid2cid = parts, #graph的nid到partition id 映射关系
+           subgraphs = []
+    )
 
     #初始化cid, partitionid 到 nodes id的映射
     for node_id, cluster_id in enumerate(parts):  
@@ -89,7 +75,11 @@ def partition_graph_org_metis(graph, args):
     for cid in range(num_partitions):
       node_num = len(subgraphs.cid2nid[cid])
       subgraph = graph.subgraph( subgraphs.cid2nid[cid] )
-      print("Subgraph {}: node_num = {} edge_num = {}".format(cid, node_num, subgraph.number_of_edges() ))
+      print("Subgraph {}: node_num = {} edge_num = {}".format(
+            cid, 
+            node_num, 
+            subgraph.number_of_edges() )
+      )
       cut_edges_num += subgraph.number_of_edges() 
       # TODO：查看加self loop的论文 add_self loop 是否需要？subgraph = dgl.add_self_loop( dgl.remove_self_loop( subgraph ) )
       #norm = subgraph.adj 
@@ -120,15 +110,16 @@ def partition_graph_org_metis(graph, args):
 
       weight = th.sparse_coo_tensor(indices, weight_value, adj.size()).coalesce()
       
-      graphinfo = GraphInfo (nxgraph = nx.Graph(subgraph), 
+      graphinfo = GraphInfo (
+                nxgraph = None,# nx.Graph(subgraph), 
                               #norm = norm, adj = adj, 
                               norm = None, adj = None, 
                               weight= weight.to(graph.graph['device']), 
                               cid = cid, ndata={})
       subgraphs.subgraphs.append(graphinfo)
 
-      for subnid, node_id in enumerate(subgraphs.cid2nid[cid]): 
-        subgraphs.nid2subnid[node_id] = subnid 
+      #for subnid, node_id in enumerate(subgraphs.cid2nid[cid]): 
+      #  subgraphs.nid2subnid[node_id] = subnid 
 
     print("--- ==== Cut_Edges_Num: ", edgecuts, cut_edges_num, indices.shape[1], 1 - cut_edges_num*1.0/graph.number_of_edges() )
 
@@ -212,46 +203,6 @@ def split_ndata_to_subgraphs(subgraphs, features, feats, labels, train_mask, val
 
     print(" subgraph.ndata[train_mask]  Device ", subgraph.ndata["train_mask"].device)
 
-
-
-def add_virtual_nodes_edges_and_bottelneck(graph, subgraphs):
-    psize = len(subgraphs.subgraphs)
-    virtual_id_list = list(range(graph.number_of_nodes(), graph.number_of_nodes() + psize))
-    #for subgraph in subgraphs.subgraphs:
-    #  subgraph.nxgraph.add_nodes_from(virtual_id_list)
-    #  print(" Add virtual_id_list", virtual_id_list, " to ", subgraph.cid)
-    # add virtual edges
-    num_cut = 0;err_num = 0
-    bottelneck = dict([(cid, []) for cid in range(psize)]) 
-    for (s,d) in graph.edges():
-      scid = subgraphs.nid2cid[s]
-      dcid = subgraphs.nid2cid[d] 
-      if scid == dcid: 
-        continue
-      num_cut += 1
-
-      ####记录bottalneck节点
-      bottelneck[scid].append(s)
-      bottelneck[dcid].append(d)
-    
-      ####TODO： 7月15日  目前没有调用 nxgraph 的虚拟边
-      #subgraphs.subgraphs[scid].nxgraph.add_edge(s, virtual_id_list[dcid])
-
-    #subgraphs.vitural_id.extend(virtual_id_list)
-
-    print("Add Edges: ", num_cut, "vitural_id: ", virtual_id_list) 
-    return bottelneck 
-
-def example_networkx():
-    #https://metis.readthedocs.io/en/latest/
-    # G.nodes[i]['color'] = colors[p]
-    G = nx.Graph()
-    nx.add_star(G, [0,1,2,3,4])
-    nx.add_path(G, [4,5,6,7,8])
-    nx.add_star(G, [8,9,10,11,12])
-    nx.add_path(G, [6,13,14,15])
-    nx.add_star(G, [15,16,17,18])
-    return G
 
 def partition_graph_METIS(adj, idx_nodes, num_clusters):
   start_time = time.time()

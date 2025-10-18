@@ -27,14 +27,15 @@ def run(args):
     features = features.to(args.device)
     labels = labels.to(args.device)
     A = A.to(args.device)
+    print("Matrix A: ", type(A))
 
-    print("Partition Graph") 
-
-    if check_subgraphs(args):
-        Subgraphs = load_subgraphs(args)
-    else:
-        Subgraphs = partition_graph_org_metis(graph, args) 
-        save_subgraphs(Subgraphs, args)
+    print("Init Sub Graphs") 
+    #if check_subgraphs(args):
+    #    Subgraphs = load_subgraphs(args)
+    #else:
+    #    Subgraphs = partition_graph_org_metis(graph, args) 
+    #    save_subgraphs(Subgraphs, args)
+    Subgraphs = init_subgraphs(graph, args) 
 
     ## lightGRAND
     print("Global Feature") 
