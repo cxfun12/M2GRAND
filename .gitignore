@@ -1,2 +1,8 @@
 experiment/
+test/
+logs/
 *.log
+*.pkl
+*.swp
+*.pyc
+__pycache__

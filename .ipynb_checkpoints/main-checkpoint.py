@@ -10,6 +10,10 @@ from utils.args import *
 from utils.data_load import *
 from utils.record import *
 
+seed = 42
+np.random.seed(seed)
+th.manual_seed(seed)
+th.cuda.manual_seed(seed)
 
 def run(args):
     print("data intput: ", args.data_input)
